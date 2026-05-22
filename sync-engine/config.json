@@ -1,0 +1,39 @@
+{
+    "access": {
+        "connection_string": "DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=C:\\ERP\\Datos\\CAM2026.accdb;",
+        "db_path": "C:\\ERP\\Datos\\CAM2026.accdb"
+    },
+    "postgresql": {
+        "host": "localhost",
+        "port": 5432,
+        "database": "erp_sync",
+        "user": "sync_user",
+        "password": "CHANGE_ME",
+        "schema": "public",
+        "pool_min_connections": 2,
+        "pool_max_connections": 10
+    },
+    "sync": {
+        "mode": "full",
+        "interval_minutes": 60,
+        "batch_size": 5000,
+        "max_retries": 3,
+        "retry_delay_seconds": 10,
+        "tables_to_exclude": [],
+        "tables_to_include": [],
+        "parallel_tables": 4,
+        "truncate_on_full_sync": true
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "logs/sync.log",
+        "max_bytes": 10485760,
+        "backup_count": 5,
+        "console_output": true
+    },
+    "service": {
+        "name": "AccessPgSync",
+        "display_name": "Access to PostgreSQL Sync Service",
+        "description": "Synchronizes Microsoft Access database tables to PostgreSQL"
+    }
+}

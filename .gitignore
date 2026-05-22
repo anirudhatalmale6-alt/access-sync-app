@@ -1,0 +1,12 @@
+node_modules/
+*.log
+logs/
+__pycache__/
+*.pyc
+.env
+venv/
+*.accdb
+*.mdb
+*.rar
+ss-*.png
+test_sync_mdb.py

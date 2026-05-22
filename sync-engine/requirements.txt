@@ -1,0 +1,4 @@
+pyodbc>=5.1.0
+psycopg2-binary>=2.9.9
+pywin32>=306
+schedule>=1.2.2

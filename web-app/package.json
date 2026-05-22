@@ -1,0 +1,28 @@
+{
+  "name": "access-sync-web-app",
+  "version": "1.0.0",
+  "description": "Web dashboard for Microsoft Access to PostgreSQL data sync",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build",
+    "postbuild:client": "node scripts/copy-dist.js",
+    "build": "npm run build:client",
+    "setup": "npm install && cd client && npm install && cd .. && npm run build"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "pg": "^8.13.0",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
