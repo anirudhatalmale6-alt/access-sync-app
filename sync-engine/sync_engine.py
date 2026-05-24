@@ -82,8 +82,12 @@ class Config:
     @classmethod
     def from_file(cls, path: str) -> "Config":
         """Load configuration from a JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except UnicodeDecodeError:
+            with open(path, "r", encoding="latin-1") as f:
+                data = json.load(f)
 
         cfg = cls()
 
@@ -320,6 +324,19 @@ def convert_value(value: Any, pg_type: str) -> Any:
                 return value
         return value
 
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value.decode("latin-1", errors="replace")
+
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            value = value.encode("latin-1", errors="replace").decode("utf-8", errors="replace")
+        return value
+
     return value
 
 
@@ -339,8 +356,9 @@ class AccessReader:
         """Open connection to Access database."""
         self.logger.info("Connecting to Access database...")
         self._conn = pyodbc.connect(self.connection_string, readonly=True)
-        self._conn.setdecoding(pyodbc.SQL_CHAR, encoding="utf-8")
-        self._conn.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
+        self._conn.setdecoding(pyodbc.SQL_CHAR, encoding="latin-1")
+        self._conn.setdecoding(pyodbc.SQL_WCHAR, encoding="latin-1")
+        self._conn.setencoding(encoding="latin-1")
         self.logger.info("Connected to Access database successfully.")
 
     def disconnect(self) -> None:
@@ -445,6 +463,9 @@ class PgWriter:
             "Connecting to PostgreSQL %s:%s/%s ...",
             self.cfg.pg_host, self.cfg.pg_port, self.cfg.pg_database,
         )
+        pg_password = self.cfg.pg_password
+        if isinstance(pg_password, str):
+            pg_password = pg_password.encode("utf-8", errors="replace").decode("utf-8")
         self._pool = psycopg2.pool.ThreadedConnectionPool(
             minconn=self.cfg.pg_pool_min,
             maxconn=self.cfg.pg_pool_max,
@@ -452,7 +473,8 @@ class PgWriter:
             port=self.cfg.pg_port,
             dbname=self.cfg.pg_database,
             user=self.cfg.pg_user,
-            password=self.cfg.pg_password,
+            password=pg_password,
+            options="-c client_encoding=UTF8",
         )
         self.logger.info("PostgreSQL connection pool created (%d-%d connections).",
                          self.cfg.pg_pool_min, self.cfg.pg_pool_max)
