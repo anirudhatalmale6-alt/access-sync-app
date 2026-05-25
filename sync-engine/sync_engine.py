@@ -29,6 +29,10 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import pyodbc
+
+# Must be set before importing psycopg2 so libpq negotiates UTF-8 during handshake
+os.environ['PGCLIENTENCODING'] = 'UTF8'
+
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
@@ -486,30 +490,32 @@ class PgWriter:
             "Connecting to PostgreSQL %s:%s/%s ...",
             self.cfg.pg_host, self.cfg.pg_port, self.cfg.pg_database,
         )
+        # Use DSN string so client_encoding is negotiated during libpq handshake
+        dsn = (
+            f"host={self.cfg.pg_host} port={self.cfg.pg_port} "
+            f"dbname={self.cfg.pg_database} user={self.cfg.pg_user} "
+            f"password={self.cfg.pg_password} client_encoding=utf8"
+        )
         try:
             self._pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=self.cfg.pg_pool_min,
                 maxconn=self.cfg.pg_pool_max,
-                host=self.cfg.pg_host,
-                port=self.cfg.pg_port,
-                dbname=self.cfg.pg_database,
-                user=self.cfg.pg_user,
-                password=self.cfg.pg_password,
-                options="-c client_encoding=UTF8",
+                dsn=dsn,
             )
         except UnicodeDecodeError as ude:
             self.logger.warning(
                 "UTF-8 encoding issue during PostgreSQL connection: %s. "
-                "Retrying without client_encoding option...", ude,
+                "Retrying with LATIN1 client encoding...", ude,
+            )
+            dsn_latin = (
+                f"host={self.cfg.pg_host} port={self.cfg.pg_port} "
+                f"dbname={self.cfg.pg_database} user={self.cfg.pg_user} "
+                f"password={self.cfg.pg_password} client_encoding=latin1"
             )
             self._pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=self.cfg.pg_pool_min,
                 maxconn=self.cfg.pg_pool_max,
-                host=self.cfg.pg_host,
-                port=self.cfg.pg_port,
-                dbname=self.cfg.pg_database,
-                user=self.cfg.pg_user,
-                password=self.cfg.pg_password,
+                dsn=dsn_latin,
             )
         self.logger.info("PostgreSQL connection pool created (%d-%d connections).",
                          self.cfg.pg_pool_min, self.cfg.pg_pool_max)
