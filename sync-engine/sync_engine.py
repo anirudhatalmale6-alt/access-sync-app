@@ -82,12 +82,19 @@ class Config:
     @classmethod
     def from_file(cls, path: str) -> "Config":
         """Load configuration from a JSON file."""
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except UnicodeDecodeError:
-            with open(path, "r", encoding="latin-1") as f:
-                data = json.load(f)
+        raw = open(path, "rb").read()
+        # Strip UTF-8 BOM if present
+        if raw.startswith(b"\xef\xbb\xbf"):
+            raw = raw[3:]
+        for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252"):
+            try:
+                text = raw.decode(enc)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            text = raw.decode("utf-8", errors="replace")
+        data = json.loads(text)
 
         cfg = cls()
 
@@ -136,7 +143,18 @@ class Config:
         cfg.service_display_name = svc.get("display_name", cfg.service_display_name)
         cfg.service_description = svc.get("description", cfg.service_description)
 
+        cfg._sanitize_strings()
         return cfg
+
+    def _sanitize_strings(self) -> None:
+        """Ensure all string fields are valid UTF-8."""
+        for attr in vars(self):
+            val = getattr(self, attr)
+            if isinstance(val, str):
+                try:
+                    val.encode("utf-8")
+                except UnicodeEncodeError:
+                    setattr(self, attr, val.encode("utf-8", errors="replace").decode("utf-8"))
 
     @property
     def pg_dsn(self) -> str:
@@ -174,8 +192,13 @@ def setup_logging(cfg: Config) -> logging.Logger:
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    # Console handler
+    # Console handler (use UTF-8 on Windows to avoid encoding errors)
     if cfg.log_console:
+        if sys.platform == "win32":
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
@@ -463,19 +486,31 @@ class PgWriter:
             "Connecting to PostgreSQL %s:%s/%s ...",
             self.cfg.pg_host, self.cfg.pg_port, self.cfg.pg_database,
         )
-        pg_password = self.cfg.pg_password
-        if isinstance(pg_password, str):
-            pg_password = pg_password.encode("utf-8", errors="replace").decode("utf-8")
-        self._pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=self.cfg.pg_pool_min,
-            maxconn=self.cfg.pg_pool_max,
-            host=self.cfg.pg_host,
-            port=self.cfg.pg_port,
-            dbname=self.cfg.pg_database,
-            user=self.cfg.pg_user,
-            password=pg_password,
-            options="-c client_encoding=UTF8",
-        )
+        try:
+            self._pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=self.cfg.pg_pool_min,
+                maxconn=self.cfg.pg_pool_max,
+                host=self.cfg.pg_host,
+                port=self.cfg.pg_port,
+                dbname=self.cfg.pg_database,
+                user=self.cfg.pg_user,
+                password=self.cfg.pg_password,
+                options="-c client_encoding=UTF8",
+            )
+        except UnicodeDecodeError as ude:
+            self.logger.warning(
+                "UTF-8 encoding issue during PostgreSQL connection: %s. "
+                "Retrying without client_encoding option...", ude,
+            )
+            self._pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=self.cfg.pg_pool_min,
+                maxconn=self.cfg.pg_pool_max,
+                host=self.cfg.pg_host,
+                port=self.cfg.pg_port,
+                dbname=self.cfg.pg_database,
+                user=self.cfg.pg_user,
+                password=self.cfg.pg_password,
+            )
         self.logger.info("PostgreSQL connection pool created (%d-%d connections).",
                          self.cfg.pg_pool_min, self.cfg.pg_pool_max)
 
@@ -1188,6 +1223,11 @@ Examples:
         print(f"ERROR: Config file not found: {config_path}")
         sys.exit(1)
 
+    # Force UTF-8 for Python I/O on Windows
+    if sys.platform == "win32":
+        os.environ.setdefault("PYTHONUTF8", "1")
+        os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
     cfg = Config.from_file(config_path)
     logger = setup_logging(cfg)
 
@@ -1240,7 +1280,7 @@ Examples:
         logger.info("Interrupted by user.")
     except Exception as exc:
         logger.error("Fatal error: %s", exc)
-        logger.debug(traceback.format_exc())
+        logger.error(traceback.format_exc())
         sys.exit(1)
     finally:
         engine.teardown()
