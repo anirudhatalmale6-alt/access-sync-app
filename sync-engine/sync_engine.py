@@ -1201,23 +1201,46 @@ try:
                 self.engine.request_shutdown()
 
         def SvcDoRun(self):
-            _sm.LogMsg(
-                _sm.EVENTLOG_INFORMATION_TYPE,
-                _sm.PYS_SERVICE_STARTED,
-                (self._svc_name_, ""),
-            )
+            import traceback as _tb
 
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(script_dir, "config.json")
+            service_log = os.path.join(script_dir, "service.log")
 
-            cfg = Config.from_file(config_path)
-            logger = setup_logging(cfg)
+            def _log_to_file(msg):
+                try:
+                    with open(service_log, "a", encoding="utf-8") as f:
+                        f.write(f"[{__import__('datetime').datetime.now()}] {msg}\n")
+                except Exception:
+                    pass
 
             try:
+                _sm.LogMsg(
+                    _sm.EVENTLOG_INFORMATION_TYPE,
+                    _sm.PYS_SERVICE_STARTED,
+                    (self._svc_name_, ""),
+                )
+                _log_to_file("Service starting...")
+
+                config_path = os.path.join(script_dir, "config.json")
+                _log_to_file(f"Config path: {config_path}")
+
+                if not os.path.exists(config_path):
+                    _log_to_file(f"ERROR: config.json not found at {config_path}")
+                    _sm.LogErrorMsg(f"Config not found: {config_path}")
+                    return
+
+                cfg = Config.from_file(config_path)
+                logger = setup_logging(cfg)
+                _log_to_file("Config loaded, starting daemon...")
+
                 run_daemon(cfg, logger)
             except Exception as exc:
-                logger.error("Service failed: %s", exc)
-                logger.debug(traceback.format_exc())
+                error_msg = f"Service failed: {exc}\n{_tb.format_exc()}"
+                _log_to_file(error_msg)
+                try:
+                    _sm.LogErrorMsg(str(exc))
+                except Exception:
+                    pass
 
 except ImportError:
     AccessSyncService = None
