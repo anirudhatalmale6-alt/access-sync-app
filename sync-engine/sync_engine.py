@@ -487,53 +487,79 @@ class PgWriter:
             "Connecting to PostgreSQL %s:%s/%s ...",
             self.cfg.pg_host, self.cfg.pg_port, self.cfg.pg_database,
         )
-        connect_kwargs = dict(
-            host=self.cfg.pg_host,
-            port=str(self.cfg.pg_port),
-            dbname=self.cfg.pg_database,
-            user=self.cfg.pg_user,
-            password=self.cfg.pg_password,
+
+        # Build a libpq DSN string. Using a DSN (instead of keyword args)
+        # lets us embed client_encoding so that libpq negotiates encoding
+        # BEFORE psycopg2 tries to decode any server response as Python str.
+        def _escape(v: str) -> str:
+            return v.replace("\\", "\\\\").replace("'", "\\'")
+
+        base_dsn = (
+            f"host='{_escape(self.cfg.pg_host)}' "
+            f"port='{self.cfg.pg_port}' "
+            f"dbname='{_escape(self.cfg.pg_database)}' "
+            f"user='{_escape(self.cfg.pg_user)}' "
+            f"password='{_escape(self.cfg.pg_password)}'"
         )
-        # Try multiple client encodings. The database may be in LATIN1
-        # or SQL_ASCII, and psycopg2 will fail to decode server responses
-        # as UTF-8 if they contain non-ASCII characters.
+
         os.environ.pop('PGCLIENTENCODING', None)
-        encodings_to_try = [None, 'LATIN1', 'WIN1252', 'SQL_ASCII', 'UTF8']
+
+        # Strategy: try multiple client_encoding values embedded in the DSN.
+        # The UnicodeDecodeError at byte 0xf3 typically happens because the
+        # server (or its locale metadata) contains non-UTF-8 bytes. Setting
+        # client_encoding in the DSN tells libpq to request that encoding
+        # from the very start of the handshake.
+        encodings_to_try = ['UTF8', 'LATIN1', 'WIN1252', 'SQL_ASCII']
         last_err = None
+
         for enc in encodings_to_try:
+            dsn = f"{base_dsn} client_encoding='{enc}'"
             try:
-                if enc:
-                    os.environ['PGCLIENTENCODING'] = enc
-                    self.logger.info("Trying PGCLIENTENCODING=%s ...", enc)
-                else:
-                    os.environ.pop('PGCLIENTENCODING', None)
-                    self.logger.info("Trying natural encoding negotiation ...")
+                self.logger.info("Trying DSN with client_encoding=%s ...", enc)
                 self._pool = psycopg2.pool.ThreadedConnectionPool(
                     minconn=self.cfg.pg_pool_min,
                     maxconn=self.cfg.pg_pool_max,
-                    **connect_kwargs,
+                    dsn=dsn,
                 )
                 self.logger.info(
                     "PostgreSQL connection pool created (%d-%d connections) "
-                    "with encoding=%s.",
-                    self.cfg.pg_pool_min, self.cfg.pg_pool_max,
-                    enc or "auto",
+                    "with client_encoding=%s.",
+                    self.cfg.pg_pool_min, self.cfg.pg_pool_max, enc,
                 )
                 return
             except UnicodeDecodeError as ude:
                 last_err = ude
-                self.logger.warning(
-                    "Encoding %s failed: %s", enc or "auto", ude,
-                )
-                os.environ.pop('PGCLIENTENCODING', None)
+                self.logger.warning("Encoding %s failed: %s", enc, ude)
                 continue
             except Exception as e:
                 last_err = e
-                self.logger.warning(
-                    "Connection with encoding %s failed: %s", enc or "auto", e,
-                )
-                os.environ.pop('PGCLIENTENCODING', None)
+                self.logger.warning("Connection with %s failed: %s", enc, e)
                 continue
+
+        # Last resort: use options to force SQL_ASCII (no encoding conversion)
+        # and register a custom type adapter after connection.
+        try:
+            self.logger.info(
+                "Trying raw connection with options -c client_encoding=SQL_ASCII ..."
+            )
+            raw_dsn = (
+                f"{base_dsn} options='-c client_encoding=SQL_ASCII'"
+            )
+            self._pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=self.cfg.pg_pool_min,
+                maxconn=self.cfg.pg_pool_max,
+                dsn=raw_dsn,
+            )
+            self.logger.info(
+                "PostgreSQL connected with SQL_ASCII fallback (%d-%d conns).",
+                self.cfg.pg_pool_min, self.cfg.pg_pool_max,
+            )
+            return
+        except Exception as e2:
+            self.logger.warning("SQL_ASCII fallback failed: %s", e2)
+            if last_err is None:
+                last_err = e2
+
         raise RuntimeError(
             f"Cannot connect to PostgreSQL after trying all encodings. "
             f"Last error: {last_err}"
