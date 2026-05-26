@@ -30,9 +30,6 @@ from typing import Any, Dict, List, Optional
 
 import pyodbc
 
-# Must be set before importing psycopg2 so libpq negotiates UTF-8 during handshake
-os.environ['PGCLIENTENCODING'] = 'UTF8'
-
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
@@ -490,35 +487,57 @@ class PgWriter:
             "Connecting to PostgreSQL %s:%s/%s ...",
             self.cfg.pg_host, self.cfg.pg_port, self.cfg.pg_database,
         )
-        # Use DSN string so client_encoding is negotiated during libpq handshake
-        dsn = (
-            f"host={self.cfg.pg_host} port={self.cfg.pg_port} "
-            f"dbname={self.cfg.pg_database} user={self.cfg.pg_user} "
-            f"password={self.cfg.pg_password} client_encoding=utf8"
+        connect_kwargs = dict(
+            host=self.cfg.pg_host,
+            port=str(self.cfg.pg_port),
+            dbname=self.cfg.pg_database,
+            user=self.cfg.pg_user,
+            password=self.cfg.pg_password,
         )
-        try:
-            self._pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=self.cfg.pg_pool_min,
-                maxconn=self.cfg.pg_pool_max,
-                dsn=dsn,
-            )
-        except UnicodeDecodeError as ude:
-            self.logger.warning(
-                "UTF-8 encoding issue during PostgreSQL connection: %s. "
-                "Retrying with LATIN1 client encoding...", ude,
-            )
-            dsn_latin = (
-                f"host={self.cfg.pg_host} port={self.cfg.pg_port} "
-                f"dbname={self.cfg.pg_database} user={self.cfg.pg_user} "
-                f"password={self.cfg.pg_password} client_encoding=latin1"
-            )
-            self._pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=self.cfg.pg_pool_min,
-                maxconn=self.cfg.pg_pool_max,
-                dsn=dsn_latin,
-            )
-        self.logger.info("PostgreSQL connection pool created (%d-%d connections).",
-                         self.cfg.pg_pool_min, self.cfg.pg_pool_max)
+        # Try multiple client encodings. The database may be in LATIN1
+        # or SQL_ASCII, and psycopg2 will fail to decode server responses
+        # as UTF-8 if they contain non-ASCII characters.
+        os.environ.pop('PGCLIENTENCODING', None)
+        encodings_to_try = [None, 'LATIN1', 'WIN1252', 'SQL_ASCII', 'UTF8']
+        last_err = None
+        for enc in encodings_to_try:
+            try:
+                if enc:
+                    os.environ['PGCLIENTENCODING'] = enc
+                    self.logger.info("Trying PGCLIENTENCODING=%s ...", enc)
+                else:
+                    os.environ.pop('PGCLIENTENCODING', None)
+                    self.logger.info("Trying natural encoding negotiation ...")
+                self._pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=self.cfg.pg_pool_min,
+                    maxconn=self.cfg.pg_pool_max,
+                    **connect_kwargs,
+                )
+                self.logger.info(
+                    "PostgreSQL connection pool created (%d-%d connections) "
+                    "with encoding=%s.",
+                    self.cfg.pg_pool_min, self.cfg.pg_pool_max,
+                    enc or "auto",
+                )
+                return
+            except UnicodeDecodeError as ude:
+                last_err = ude
+                self.logger.warning(
+                    "Encoding %s failed: %s", enc or "auto", ude,
+                )
+                os.environ.pop('PGCLIENTENCODING', None)
+                continue
+            except Exception as e:
+                last_err = e
+                self.logger.warning(
+                    "Connection with encoding %s failed: %s", enc or "auto", e,
+                )
+                os.environ.pop('PGCLIENTENCODING', None)
+                continue
+        raise RuntimeError(
+            f"Cannot connect to PostgreSQL after trying all encodings. "
+            f"Last error: {last_err}"
+        )
 
     def disconnect(self) -> None:
         """Close all PostgreSQL connections."""
