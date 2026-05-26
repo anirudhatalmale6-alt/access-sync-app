@@ -1163,42 +1163,50 @@ def run_daemon(cfg: Config, logger: logging.Logger, mode: Optional[str] = None) 
 # Windows service support
 # ---------------------------------------------------------------------------
 
-def create_windows_service():
-    """Create a Windows service class. Only import win32 modules when needed."""
+def _ensure_pywin32():
+    """Import pywin32 modules, exit with message if missing."""
     try:
         import win32serviceutil
         import win32service
         import win32event
         import servicemanager
+        return win32serviceutil, win32service, win32event, servicemanager
     except ImportError:
         print("ERROR: pywin32 is required to run as a Windows service.")
         print("Install it with: pip install pywin32")
         sys.exit(1)
 
-    class AccessSyncService(win32serviceutil.ServiceFramework):
+
+# Module-level service class so pickle can resolve it by name
+try:
+    import win32serviceutil as _w32su
+    import win32service as _w32s
+    import win32event as _w32e
+    import servicemanager as _sm
+
+    class AccessSyncService(_w32su.ServiceFramework):
         _svc_name_ = "AccessPgSync"
         _svc_display_name_ = "Access to PostgreSQL Sync Service"
         _svc_description_ = "Synchronizes Microsoft Access database tables to PostgreSQL"
 
         def __init__(self, args):
-            win32serviceutil.ServiceFramework.__init__(self, args)
-            self.stop_event = win32event.CreateEvent(None, 0, 0, None)
+            _w32su.ServiceFramework.__init__(self, args)
+            self.stop_event = _w32e.CreateEvent(None, 0, 0, None)
             self.engine = None
 
         def SvcStop(self):
-            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            win32event.SetEvent(self.stop_event)
+            self.ReportServiceStatus(_w32s.SERVICE_STOP_PENDING)
+            _w32e.SetEvent(self.stop_event)
             if self.engine:
                 self.engine.request_shutdown()
 
         def SvcDoRun(self):
-            servicemanager.LogMsg(
-                servicemanager.EVENTLOG_INFORMATION_TYPE,
-                servicemanager.PYS_SERVICE_STARTED,
+            _sm.LogMsg(
+                _sm.EVENTLOG_INFORMATION_TYPE,
+                _sm.PYS_SERVICE_STARTED,
                 (self._svc_name_, ""),
             )
 
-            # Find config.json next to the script
             script_dir = os.path.dirname(os.path.abspath(__file__))
             config_path = os.path.join(script_dir, "config.json")
 
@@ -1211,7 +1219,8 @@ def create_windows_service():
                 logger.error("Service failed: %s", exc)
                 logger.debug(traceback.format_exc())
 
-    return AccessSyncService
+except ImportError:
+    AccessSyncService = None
 
 
 # ---------------------------------------------------------------------------
@@ -1258,9 +1267,10 @@ Examples:
 
     # Check for Windows service commands (install, start, stop, remove)
     if len(sys.argv) > 1 and sys.argv[1] in ("install", "start", "stop", "remove", "update", "debug"):
-        ServiceClass = create_windows_service()
+        if AccessSyncService is None:
+            _ensure_pywin32()
         import win32serviceutil
-        win32serviceutil.HandleCommandLine(ServiceClass)
+        win32serviceutil.HandleCommandLine(AccessSyncService)
         return
 
     args = parser.parse_args()
