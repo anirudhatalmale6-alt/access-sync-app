@@ -5,6 +5,7 @@ const { apiKeyAuth } = require('../middleware/auth');
 const tablesRouter = require('./tables');
 const syncRouter = require('./sync');
 const settingsRouter = require('./settings');
+const endpointsRouter = require('./endpoints');
 
 const router = express.Router();
 
@@ -21,6 +22,7 @@ router.use(apiKeyAuth);
 router.use('/tables', tablesRouter);
 router.use('/sync', syncRouter);
 router.use('/settings', settingsRouter);
+router.use('/endpoints', endpointsRouter);
 
 // Health check
 router.get('/health', (req, res) => {
