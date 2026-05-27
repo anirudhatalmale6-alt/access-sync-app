@@ -26,7 +26,7 @@ router.get('/articulos', async (req, res) => {
     }
 
     const countRes = await db.query(
-      `SELECT COUNT(*) FROM f_art a ${where}`, params
+      `SELECT COUNT(*) FROM "F_ART" a ${where}`, params
     );
     const total = parseInt(countRes.rows[0].count);
 
@@ -38,10 +38,10 @@ router.get('/articulos', async (req, res) => {
         f.codfam, f.desfam, f.secfam,
         s.codsec, s.dessec,
         u.codume, u.desume
-      FROM f_art a
-      LEFT JOIN f_fam f ON a.famart = f.codfam
-      LEFT JOIN f_sec s ON f.secfam = s.codsec
-      LEFT JOIN f_ume u ON a.umeart = u.codume
+      FROM "F_ART" a
+      LEFT JOIN "F_FAM" f ON a.famart = f.codfam
+      LEFT JOIN "F_SEC" s ON f.secfam = s.codsec
+      LEFT JOIN "F_UME" u ON a.umeart = u.codume
       ${where}
       ORDER BY a.codart
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -63,10 +63,10 @@ router.get('/articulos/:codart', async (req, res) => {
         f.codfam, f.desfam, f.secfam,
         s.codsec, s.dessec,
         u.codume, u.desume
-      FROM f_art a
-      LEFT JOIN f_fam f ON a.famart = f.codfam
-      LEFT JOIN f_sec s ON f.secfam = s.codsec
-      LEFT JOIN f_ume u ON a.umeart = u.codume
+      FROM "F_ART" a
+      LEFT JOIN "F_FAM" f ON a.famart = f.codfam
+      LEFT JOIN "F_SEC" s ON f.secfam = s.codsec
+      LEFT JOIN "F_UME" u ON a.umeart = u.codume
       WHERE a.codart = $1
     `, [codart]);
 
@@ -77,17 +77,17 @@ router.get('/articulos/:codart', async (req, res) => {
     const art = artRes.rows[0];
 
     const [eanRes, stoRes, ltaRes] = await Promise.all([
-      db.query('SELECT * FROM f_ean WHERE artean = $1', [codart]),
+      db.query('SELECT * FROM "F_EAN" WHERE artean = $1', [codart]),
       db.query(`
         SELECT st.*, al.nomalm
-        FROM f_sto st
-        LEFT JOIN f_alm al ON st.almsto = al.codalm
+        FROM "F_STO" st
+        LEFT JOIN "F_ALM" al ON st.almsto = al.codalm
         WHERE st.artsto = $1
       `, [codart]),
       db.query(`
         SELECT lt.*, t.destar
-        FROM f_lta lt
-        LEFT JOIN f_tar t ON lt.tarlta = t.codtar
+        FROM "F_LTA" lt
+        LEFT JOIN "F_TAR" t ON lt.tarlta = t.codtar
         WHERE lt.artlta = $1
       `, [codart]),
     ]);
@@ -119,15 +119,15 @@ router.get('/catalogos/proveedores', async (req, res) => {
       where = `WHERE p.nofpro ILIKE $1 OR p.nocpro ILIKE $2`;
     }
 
-    const countRes = await db.query(`SELECT COUNT(*) FROM f_pro p ${where}`, params);
+    const countRes = await db.query(`SELECT COUNT(*) FROM "F_PRO" p ${where}`, params);
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
       SELECT p.codpro, p.nifpro, p.nofpro, p.nocpro, p.dompro, p.pobpro,
         p.cpopro, p.propro, p.telpro, p.emapro, p.fpapro,
         fp.desfpa AS forma_pago
-      FROM f_pro p
-      LEFT JOIN f_fpa fp ON p.fpapro = fp.codfpa
+      FROM "F_PRO" p
+      LEFT JOIN "F_FPA" fp ON p.fpapro = fp.codfpa
       ${where}
       ORDER BY p.codpro
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -152,7 +152,7 @@ router.get('/catalogos/clientes', async (req, res) => {
       where = `WHERE c.nofcli ILIKE $1 OR c.noccli ILIKE $2`;
     }
 
-    const countRes = await db.query(`SELECT COUNT(*) FROM f_cli c ${where}`, params);
+    const countRes = await db.query(`SELECT COUNT(*) FROM "F_CLI" c ${where}`, params);
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
@@ -160,9 +160,9 @@ router.get('/catalogos/clientes', async (req, res) => {
         c.cpocli, c.procli, c.telcli, c.emacli, c.agecli, c.fpacli, c.tarcli,
         ag.nomage AS agente_nombre,
         fp.desfpa AS forma_pago
-      FROM f_cli c
-      LEFT JOIN f_age ag ON c.agecli = ag.codage
-      LEFT JOIN f_fpa fp ON c.fpacli = fp.codfpa
+      FROM "F_CLI" c
+      LEFT JOIN "F_AGE" ag ON c.agecli = ag.codage
+      LEFT JOIN "F_FPA" fp ON c.fpacli = fp.codfpa
       ${where}
       ORDER BY c.codcli
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -179,7 +179,7 @@ router.get('/catalogos/agentes', async (req, res) => {
   try {
     const result = await db.query(`
       SELECT codage, nomage, nocage, domage, emaage, comage, zonage, temage
-      FROM f_age ORDER BY codage
+      FROM "F_AGE" ORDER BY codage
     `);
     res.json({ data: result.rows, total: result.rows.length });
   } catch (err) {
@@ -192,7 +192,7 @@ router.get('/catalogos/formas-pago', async (req, res) => {
   try {
     const result = await db.query(`
       SELECT codfpa, desfpa, venfpa, tipfpa, efefpa
-      FROM f_fpa ORDER BY codfpa
+      FROM "F_FPA" ORDER BY codfpa
     `);
     res.json({ data: result.rows, total: result.rows.length });
   } catch (err) {
@@ -208,17 +208,17 @@ router.get('/traspasos', async (req, res) => {
   try {
     const { page, limit, offset } = paginate(req);
 
-    const countRes = await db.query('SELECT COUNT(*) FROM f_tra');
+    const countRes = await db.query('SELECT COUNT(*) FROM "F_TRA"');
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
       SELECT t.doctra, t.fectra, t.aortra, t.adetra, t.comtra,
         ao.nomalm AS almacen_origen,
         ad.nomalm AS almacen_destino,
-        (SELECT COUNT(*) FROM f_ltr WHERE docltr = t.doctra) AS num_lineas
-      FROM f_tra t
-      LEFT JOIN f_alm ao ON t.aortra = ao.codalm
-      LEFT JOIN f_alm ad ON t.adetra = ad.codalm
+        (SELECT COUNT(*) FROM "F_LTR" WHERE docltr = t.doctra) AS num_lineas
+      FROM "F_TRA" t
+      LEFT JOIN "F_ALM" ao ON t.aortra = ao.codalm
+      LEFT JOIN "F_ALM" ad ON t.adetra = ad.codalm
       ORDER BY t.doctra DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
@@ -238,9 +238,9 @@ router.get('/traspasos/:doctra', async (req, res) => {
       SELECT t.*,
         ao.nomalm AS almacen_origen,
         ad.nomalm AS almacen_destino
-      FROM f_tra t
-      LEFT JOIN f_alm ao ON t.aortra = ao.codalm
-      LEFT JOIN f_alm ad ON t.adetra = ad.codalm
+      FROM "F_TRA" t
+      LEFT JOIN "F_ALM" ao ON t.aortra = ao.codalm
+      LEFT JOIN "F_ALM" ad ON t.adetra = ad.codalm
       WHERE t.doctra = $1
     `, [doctra]);
 
@@ -250,8 +250,8 @@ router.get('/traspasos/:doctra', async (req, res) => {
 
     const lineas = await db.query(`
       SELECT l.*, a.desart
-      FROM f_ltr l
-      LEFT JOIN f_art a ON l.artltr = a.codart
+      FROM "F_LTR" l
+      LEFT JOIN "F_ART" a ON l.artltr = a.codart
       WHERE l.docltr = $1
       ORDER BY l.linltr
     `, [doctra]);
@@ -270,7 +270,7 @@ router.get('/facturas-proveedor', async (req, res) => {
   try {
     const { page, limit, offset } = paginate(req);
 
-    const countRes = await db.query('SELECT COUNT(*) FROM f_fre');
+    const countRes = await db.query('SELECT COUNT(*) FROM "F_FRE"');
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
@@ -278,10 +278,10 @@ router.get('/facturas-proveedor', async (req, res) => {
         fr.estfre, fr.totfre, fr.fopfre, fr.almfre,
         p.nofpro AS proveedor_nombre,
         fp.desfpa AS forma_pago,
-        (SELECT COUNT(*) FROM f_lfr WHERE tiplfr = fr.tipfre AND codlfr = fr.codfre) AS num_lineas
-      FROM f_fre fr
-      LEFT JOIN f_pro p ON fr.profre = p.codpro
-      LEFT JOIN f_fpa fp ON fr.fopfre = fp.codfpa
+        (SELECT COUNT(*) FROM "F_LFR" WHERE tiplfr = fr.tipfre AND codlfr = fr.codfre) AS num_lineas
+      FROM "F_FRE" fr
+      LEFT JOIN "F_PRO" p ON fr.profre = p.codpro
+      LEFT JOIN "F_FPA" fp ON fr.fopfre = fp.codfpa
       ORDER BY fr.fecfre DESC, fr.codfre DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
@@ -302,10 +302,10 @@ router.get('/facturas-proveedor/:tipo/:codigo', async (req, res) => {
         p.nofpro AS proveedor_nombre, p.nifpro,
         fp.desfpa AS forma_pago,
         al.nomalm AS almacen_nombre
-      FROM f_fre fr
-      LEFT JOIN f_pro p ON fr.profre = p.codpro
-      LEFT JOIN f_fpa fp ON fr.fopfre = fp.codfpa
-      LEFT JOIN f_alm al ON fr.almfre = al.codalm
+      FROM "F_FRE" fr
+      LEFT JOIN "F_PRO" p ON fr.profre = p.codpro
+      LEFT JOIN "F_FPA" fp ON fr.fopfre = fp.codfpa
+      LEFT JOIN "F_ALM" al ON fr.almfre = al.codalm
       WHERE fr.tipfre = $1 AND fr.codfre = $2
     `, [tipo, parseInt(codigo)]);
 
@@ -316,13 +316,13 @@ router.get('/facturas-proveedor/:tipo/:codigo', async (req, res) => {
     const [lineas, pagos] = await Promise.all([
       db.query(`
         SELECT l.*, a.desart
-        FROM f_lfr l
-        LEFT JOIN f_art a ON l.artlfr = a.codart
+        FROM "F_LFR" l
+        LEFT JOIN "F_ART" a ON l.artlfr = a.codart
         WHERE l.tiplfr = $1 AND l.codlfr = $2
         ORDER BY l.poslfr
       `, [tipo, parseInt(codigo)]),
       db.query(`
-        SELECT * FROM f_lpf
+        SELECT * FROM "F_LPF"
         WHERE tfrlpf = $1 AND cfrlpf = $2
         ORDER BY linlpf
       `, [tipo, parseInt(codigo)]),
@@ -346,7 +346,7 @@ router.get('/remisiones', async (req, res) => {
   try {
     const { page, limit, offset } = paginate(req);
 
-    const countRes = await db.query('SELECT COUNT(*) FROM f_alb');
+    const countRes = await db.query('SELECT COUNT(*) FROM "F_ALB"');
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
@@ -355,11 +355,11 @@ router.get('/remisiones', async (req, res) => {
         c.nofcli AS cliente_nombre,
         ag.nomage AS agente_nombre,
         fp.desfpa AS forma_pago,
-        (SELECT COUNT(*) FROM f_lal WHERE tiplal = ab.tipalb AND codlal = ab.codalb) AS num_lineas
-      FROM f_alb ab
-      LEFT JOIN f_cli c ON ab.clialb = c.codcli
-      LEFT JOIN f_age ag ON ab.agealb = ag.codage
-      LEFT JOIN f_fpa fp ON ab.fopalb = fp.codfpa
+        (SELECT COUNT(*) FROM "F_LAL" WHERE tiplal = ab.tipalb AND codlal = ab.codalb) AS num_lineas
+      FROM "F_ALB" ab
+      LEFT JOIN "F_CLI" c ON ab.clialb = c.codcli
+      LEFT JOIN "F_AGE" ag ON ab.agealb = ag.codage
+      LEFT JOIN "F_FPA" fp ON ab.fopalb = fp.codfpa
       ORDER BY ab.fecalb DESC, ab.codalb DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
@@ -381,11 +381,11 @@ router.get('/remisiones/:tipo/:codigo', async (req, res) => {
         ag.nomage AS agente_nombre,
         fp.desfpa AS forma_pago,
         al.nomalm AS almacen_nombre
-      FROM f_alb ab
-      LEFT JOIN f_cli c ON ab.clialb = c.codcli
-      LEFT JOIN f_age ag ON ab.agealb = ag.codage
-      LEFT JOIN f_fpa fp ON ab.fopalb = fp.codfpa
-      LEFT JOIN f_alm al ON ab.almalb = al.codalm
+      FROM "F_ALB" ab
+      LEFT JOIN "F_CLI" c ON ab.clialb = c.codcli
+      LEFT JOIN "F_AGE" ag ON ab.agealb = ag.codage
+      LEFT JOIN "F_FPA" fp ON ab.fopalb = fp.codfpa
+      LEFT JOIN "F_ALM" al ON ab.almalb = al.codalm
       WHERE ab.tipalb = $1 AND ab.codalb = $2
     `, [tipo, parseInt(codigo)]);
 
@@ -396,13 +396,13 @@ router.get('/remisiones/:tipo/:codigo', async (req, res) => {
     const [lineas, cobros] = await Promise.all([
       db.query(`
         SELECT l.*, a.desart
-        FROM f_lal l
-        LEFT JOIN f_art a ON l.artlal = a.codart
+        FROM "F_LAL" l
+        LEFT JOIN "F_ART" a ON l.artlal = a.codart
         WHERE l.tiplal = $1 AND l.codlal = $2
         ORDER BY l.poslal
       `, [tipo, parseInt(codigo)]),
       db.query(`
-        SELECT * FROM f_lac
+        SELECT * FROM "F_LAC"
         WHERE tfalac = $1 AND callac = $2
         ORDER BY linlac
       `, [tipo, parseInt(codigo)]),
@@ -444,8 +444,8 @@ router.get('/existencias', async (req, res) => {
 
     const countRes = await db.query(`
       SELECT COUNT(*)
-      FROM f_sto st
-      LEFT JOIN f_art a ON st.artsto = a.codart
+      FROM "F_STO" st
+      LEFT JOIN "F_ART" a ON st.artsto = a.codart
       ${where}
     `, params);
     const total = parseInt(countRes.rows[0].count);
@@ -455,10 +455,10 @@ router.get('/existencias', async (req, res) => {
         a.desart, a.pcoart, a.phaart,
         al.nomalm AS almacen_nombre,
         p.nofpro AS proveedor_nombre
-      FROM f_sto st
-      LEFT JOIN f_art a ON st.artsto = a.codart
-      LEFT JOIN f_alm al ON st.almsto = al.codalm
-      LEFT JOIN f_pro p ON a.phaart = p.codpro
+      FROM "F_STO" st
+      LEFT JOIN "F_ART" a ON st.artsto = a.codart
+      LEFT JOIN "F_ALM" al ON st.almsto = al.codalm
+      LEFT JOIN "F_PRO" p ON a.phaart = p.codpro
       ${where}
       ORDER BY st.artsto, st.almsto
       LIMIT $${pi++} OFFSET $${pi}
@@ -480,10 +480,10 @@ router.get('/existencias/:artsto/:almsto', async (req, res) => {
         a.desart, a.pcoart, a.phaart, a.famart,
         al.nomalm AS almacen_nombre,
         p.nofpro AS proveedor_nombre
-      FROM f_sto st
-      LEFT JOIN f_art a ON st.artsto = a.codart
-      LEFT JOIN f_alm al ON st.almsto = al.codalm
-      LEFT JOIN f_pro p ON a.phaart = p.codpro
+      FROM "F_STO" st
+      LEFT JOIN "F_ART" a ON st.artsto = a.codart
+      LEFT JOIN "F_ALM" al ON st.almsto = al.codalm
+      LEFT JOIN "F_PRO" p ON a.phaart = p.codpro
       WHERE st.artsto = $1 AND st.almsto = $2
     `, [artsto, almsto]);
 
@@ -492,7 +492,7 @@ router.get('/existencias/:artsto/:almsto', async (req, res) => {
     }
 
     const cinRes = await db.query(`
-      SELECT * FROM f_cin
+      SELECT * FROM "F_CIN"
       WHERE artcin = $1 AND almcin = $2
       ORDER BY feccin DESC
     `, [artsto, almsto]);
@@ -514,7 +514,7 @@ router.get('/entradas-proveedor', async (req, res) => {
   try {
     const { page, limit, offset } = paginate(req);
 
-    const countRes = await db.query('SELECT COUNT(*) FROM f_ent');
+    const countRes = await db.query('SELECT COUNT(*) FROM "F_ENT"');
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
@@ -522,10 +522,10 @@ router.get('/entradas-proveedor', async (req, res) => {
         e.estent, e.totent, e.fopent, e.alment,
         p.nofpro AS proveedor_nombre,
         fp.desfpa AS forma_pago,
-        (SELECT COUNT(*) FROM f_len WHERE tiplen = e.tipent AND codlen = e.codent) AS num_lineas
-      FROM f_ent e
-      LEFT JOIN f_pro p ON e.proent = p.codpro
-      LEFT JOIN f_fpa fp ON e.fopent = fp.codfpa
+        (SELECT COUNT(*) FROM "F_LEN" WHERE tiplen = e.tipent AND codlen = e.codent) AS num_lineas
+      FROM "F_ENT" e
+      LEFT JOIN "F_PRO" p ON e.proent = p.codpro
+      LEFT JOIN "F_FPA" fp ON e.fopent = fp.codfpa
       ORDER BY e.fecent DESC, e.codent DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
@@ -546,10 +546,10 @@ router.get('/entradas-proveedor/:tipo/:codigo', async (req, res) => {
         p.nofpro AS proveedor_nombre, p.nifpro,
         fp.desfpa AS forma_pago,
         al.nomalm AS almacen_nombre
-      FROM f_ent e
-      LEFT JOIN f_pro p ON e.proent = p.codpro
-      LEFT JOIN f_fpa fp ON e.fopent = fp.codfpa
-      LEFT JOIN f_alm al ON e.alment = al.codalm
+      FROM "F_ENT" e
+      LEFT JOIN "F_PRO" p ON e.proent = p.codpro
+      LEFT JOIN "F_FPA" fp ON e.fopent = fp.codfpa
+      LEFT JOIN "F_ALM" al ON e.alment = al.codalm
       WHERE e.tipent = $1 AND e.codent = $2
     `, [tipo, parseInt(codigo)]);
 
@@ -559,8 +559,8 @@ router.get('/entradas-proveedor/:tipo/:codigo', async (req, res) => {
 
     const lineas = await db.query(`
       SELECT l.*, a.desart
-      FROM f_len l
-      LEFT JOIN f_art a ON l.artlen = a.codart
+      FROM "F_LEN" l
+      LEFT JOIN "F_ART" a ON l.artlen = a.codart
       WHERE l.tiplen = $1 AND l.codlen = $2
       ORDER BY l.poslen
     `, [tipo, parseInt(codigo)]);
@@ -582,7 +582,7 @@ router.get('/facturas-clientes', async (req, res) => {
   try {
     const { page, limit, offset } = paginate(req);
 
-    const countRes = await db.query('SELECT COUNT(*) FROM f_fac');
+    const countRes = await db.query('SELECT COUNT(*) FROM "F_FAC"');
     const total = parseInt(countRes.rows[0].count);
 
     const result = await db.query(`
@@ -591,11 +591,11 @@ router.get('/facturas-clientes', async (req, res) => {
         c.nofcli AS cliente_nombre,
         ag.nomage AS agente_nombre,
         fp.desfpa AS forma_pago,
-        (SELECT COUNT(*) FROM f_lfa WHERE tiplfa = fc.tipfac AND codlfa = fc.codfac) AS num_lineas
-      FROM f_fac fc
-      LEFT JOIN f_cli c ON fc.clifac = c.codcli
-      LEFT JOIN f_age ag ON fc.agefac = ag.codage
-      LEFT JOIN f_fpa fp ON fc.fopfac = fp.codfpa
+        (SELECT COUNT(*) FROM "F_LFA" WHERE tiplfa = fc.tipfac AND codlfa = fc.codfac) AS num_lineas
+      FROM "F_FAC" fc
+      LEFT JOIN "F_CLI" c ON fc.clifac = c.codcli
+      LEFT JOIN "F_AGE" ag ON fc.agefac = ag.codage
+      LEFT JOIN "F_FPA" fp ON fc.fopfac = fp.codfpa
       ORDER BY fc.fecfac DESC, fc.codfac DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
@@ -617,11 +617,11 @@ router.get('/facturas-clientes/:tipo/:codigo', async (req, res) => {
         ag.nomage AS agente_nombre,
         fp.desfpa AS forma_pago,
         al.nomalm AS almacen_nombre
-      FROM f_fac fc
-      LEFT JOIN f_cli c ON fc.clifac = c.codcli
-      LEFT JOIN f_age ag ON fc.agefac = ag.codage
-      LEFT JOIN f_fpa fp ON fc.fopfac = fp.codfpa
-      LEFT JOIN f_alm al ON fc.almfac = al.codalm
+      FROM "F_FAC" fc
+      LEFT JOIN "F_CLI" c ON fc.clifac = c.codcli
+      LEFT JOIN "F_AGE" ag ON fc.agefac = ag.codage
+      LEFT JOIN "F_FPA" fp ON fc.fopfac = fp.codfpa
+      LEFT JOIN "F_ALM" al ON fc.almfac = al.codalm
       WHERE fc.tipfac = $1 AND fc.codfac = $2
     `, [tipo, parseInt(codigo)]);
 
@@ -632,13 +632,13 @@ router.get('/facturas-clientes/:tipo/:codigo', async (req, res) => {
     const [lineas, cobros] = await Promise.all([
       db.query(`
         SELECT l.*, a.desart
-        FROM f_lfa l
-        LEFT JOIN f_art a ON l.artlfa = a.codart
+        FROM "F_LFA" l
+        LEFT JOIN "F_ART" a ON l.artlfa = a.codart
         WHERE l.tiplfa = $1 AND l.codlfa = $2
         ORDER BY l.poslfa
       `, [tipo, parseInt(codigo)]),
       db.query(`
-        SELECT * FROM f_lco
+        SELECT * FROM "F_LCO"
         WHERE tfalco = $1 AND cfalco = $2
         ORDER BY linlco
       `, [tipo, parseInt(codigo)]),
