@@ -10,6 +10,41 @@ function paginate(req) {
   return { page, limit, offset };
 }
 
+// ─── DIAGNOSTIC: Show actual columns for key tables ───────────────────
+router.get('/diagnostics/columns', async (req, res) => {
+  try {
+    const tables = ['F_ART', 'F_CLI', 'F_PRO', 'F_FAM', 'F_SEC', 'F_UME', 'F_AGE', 'F_FPA',
+      'F_ALM', 'F_STO', 'F_TRA', 'F_LTR', 'F_FRE', 'F_LFR', 'F_LPF', 'F_ALB', 'F_LAL',
+      'F_LAC', 'F_ENT', 'F_LEN', 'F_FAC', 'F_LFA', 'F_LCO', 'F_EAN', 'F_LTA', 'F_TAR', 'F_CIN'];
+    const result = {};
+    for (const t of tables) {
+      try {
+        const cols = await db.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position`, [t]
+        );
+        if (cols.rows.length > 0) {
+          result[t] = cols.rows.map(r => r.column_name);
+        }
+      } catch (_) { /* table may not exist */ }
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/diagnostics/columns/:table', async (req, res) => {
+  try {
+    const table = req.params.table.toUpperCase();
+    const cols = await db.query(
+      `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position`, [table]
+    );
+    res.json({ table, columns: cols.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── ENDPOINT: ARTICULOS ───────────────────────────────────────────────
 
 router.get('/articulos', async (req, res) => {
