@@ -246,8 +246,7 @@ router.get('/traspasos', async (req, res) => {
     const result = await db.query(`
       SELECT t."DOCTRA", t."FECTRA", t."AORTRA", t."ADETRA", t."COMTRA",
         ao."NOMALM" AS almacen_origen,
-        ad."NOMALM" AS almacen_destino,
-        (SELECT COUNT(*) FROM "F_LTR" WHERE "DOCLTR" = t."DOCTRA") AS num_lineas
+        ad."NOMALM" AS almacen_destino
       FROM "F_TRA" t
       LEFT JOIN "F_ALM" ao ON t."AORTRA" = ao."CODALM"
       LEFT JOIN "F_ALM" ad ON t."ADETRA" = ad."CODALM"
@@ -255,7 +254,19 @@ router.get('/traspasos', async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    res.json({ data: result.rows, total, page, limit });
+    const data = [];
+    for (const row of result.rows) {
+      const lineas = await db.query(`
+        SELECT l.*, a."DESART"
+        FROM "F_LTR" l
+        LEFT JOIN "F_ART" a ON l."ARTLTR" = a."CODART"
+        WHERE l."DOCLTR" = $1
+        ORDER BY l."LINLTR"
+      `, [row.DOCTRA]);
+      data.push({ ...row, lineas: lineas.rows });
+    }
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error('Traspasos error:', err.message);
     res.status(500).json({ error: 'Failed to fetch traspasos', message: err.message });
@@ -308,8 +319,7 @@ router.get('/facturas-proveedor', async (req, res) => {
       SELECT fr."TIPFRE", fr."CODFRE", fr."FACFRE", fr."FECFRE", fr."PROFRE",
         fr."ESTFRE", fr."TOTFRE", fr."FOPFRE", fr."ALMFRE",
         p."NOFPRO" AS proveedor_nombre,
-        fp."DESFPA" AS forma_pago,
-        (SELECT COUNT(*) FROM "F_LFR" WHERE "TIPLFR" = fr."TIPFRE" AND "CODLFR" = fr."CODFRE") AS num_lineas
+        fp."DESFPA" AS forma_pago
       FROM "F_FRE" fr
       LEFT JOIN "F_PRO" p ON fr."PROFRE" = p."CODPRO"
       LEFT JOIN "F_FPA" fp ON fr."FOPFRE" = fp."CODFPA"
@@ -317,7 +327,19 @@ router.get('/facturas-proveedor', async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    res.json({ data: result.rows, total, page, limit });
+    const data = [];
+    for (const row of result.rows) {
+      const lineas = await db.query(`
+        SELECT l.*, a."DESART"
+        FROM "F_LFR" l
+        LEFT JOIN "F_ART" a ON l."ARTLFR" = a."CODART"
+        WHERE l."TIPLFR" = $1 AND l."CODLFR" = $2
+        ORDER BY l."POSLFR"
+      `, [row.TIPFRE, row.CODFRE]);
+      data.push({ ...row, lineas: lineas.rows });
+    }
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error('Facturas proveedor error:', err.message);
     res.status(500).json({ error: 'Failed to fetch facturas proveedor', message: err.message });
@@ -384,8 +406,7 @@ router.get('/remisiones', async (req, res) => {
         ab."ESTALB", ab."TOTALB", ab."FOPALB", ab."ALMALB", ab."AGEALB", ab."CNOALB",
         c."NOFCLI" AS cliente_nombre,
         ag."NOMAGE" AS agente_nombre,
-        fp."DESFPA" AS forma_pago,
-        (SELECT COUNT(*) FROM "F_LAL" WHERE "TIPLAL" = ab."TIPALB" AND "CODLAL" = ab."CODALB") AS num_lineas
+        fp."DESFPA" AS forma_pago
       FROM "F_ALB" ab
       LEFT JOIN "F_CLI" c ON ab."CLIALB" = c."CODCLI"
       LEFT JOIN "F_AGE" ag ON ab."AGEALB" = ag."CODAGE"
@@ -394,7 +415,19 @@ router.get('/remisiones', async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    res.json({ data: result.rows, total, page, limit });
+    const data = [];
+    for (const row of result.rows) {
+      const lineas = await db.query(`
+        SELECT l.*, a."DESART"
+        FROM "F_LAL" l
+        LEFT JOIN "F_ART" a ON l."ARTLAL" = a."CODART"
+        WHERE l."TIPLAL" = $1 AND l."CODLAL" = $2
+        ORDER BY l."POSLAL"
+      `, [row.TIPALB, row.CODALB]);
+      data.push({ ...row, lineas: lineas.rows });
+    }
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error('Remisiones error:', err.message);
     res.status(500).json({ error: 'Failed to fetch remisiones', message: err.message });
@@ -549,8 +582,7 @@ router.get('/entradas-proveedor', async (req, res) => {
       SELECT e."TIPENT", e."CODENT", e."REFENT", e."FECENT", e."PROENT",
         e."ESTENT", e."TOTENT", e."FOPENT", e."ALMENT",
         p."NOFPRO" AS proveedor_nombre,
-        fp."DESFPA" AS forma_pago,
-        (SELECT COUNT(*) FROM "F_LEN" WHERE "TIPLEN" = e."TIPENT" AND "CODLEN" = e."CODENT") AS num_lineas
+        fp."DESFPA" AS forma_pago
       FROM "F_ENT" e
       LEFT JOIN "F_PRO" p ON e."PROENT" = p."CODPRO"
       LEFT JOIN "F_FPA" fp ON e."FOPENT" = fp."CODFPA"
@@ -558,7 +590,19 @@ router.get('/entradas-proveedor', async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    res.json({ data: result.rows, total, page, limit });
+    const data = [];
+    for (const row of result.rows) {
+      const lineas = await db.query(`
+        SELECT l.*, a."DESART"
+        FROM "F_LEN" l
+        LEFT JOIN "F_ART" a ON l."ARTLEN" = a."CODART"
+        WHERE l."TIPLEN" = $1 AND l."CODLEN" = $2
+        ORDER BY l."POSLEN"
+      `, [row.TIPENT, row.CODENT]);
+      data.push({ ...row, lineas: lineas.rows });
+    }
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error('Entradas proveedor error:', err.message);
     res.status(500).json({ error: 'Failed to fetch entradas proveedor', message: err.message });
@@ -617,8 +661,7 @@ router.get('/facturas-clientes', async (req, res) => {
         fc."ESTFAC", fc."TOTFAC", fc."FOPFAC", fc."ALMFAC", fc."AGEFAC", fc."CNOFAC",
         c."NOFCLI" AS cliente_nombre,
         ag."NOMAGE" AS agente_nombre,
-        fp."DESFPA" AS forma_pago,
-        (SELECT COUNT(*) FROM "F_LFA" WHERE "TIPLFA" = fc."TIPFAC" AND "CODLFA" = fc."CODFAC") AS num_lineas
+        fp."DESFPA" AS forma_pago
       FROM "F_FAC" fc
       LEFT JOIN "F_CLI" c ON fc."CLIFAC" = c."CODCLI"
       LEFT JOIN "F_AGE" ag ON fc."AGEFAC" = ag."CODAGE"
@@ -627,7 +670,19 @@ router.get('/facturas-clientes', async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    res.json({ data: result.rows, total, page, limit });
+    const data = [];
+    for (const row of result.rows) {
+      const lineas = await db.query(`
+        SELECT l.*, a."DESART"
+        FROM "F_LFA" l
+        LEFT JOIN "F_ART" a ON l."ARTLFA" = a."CODART"
+        WHERE l."TIPLFA" = $1 AND l."CODLFA" = $2
+        ORDER BY l."POSLFA"
+      `, [row.TIPFAC, row.CODFAC]);
+      data.push({ ...row, lineas: lineas.rows });
+    }
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error('Facturas clientes error:', err.message);
     res.status(500).json({ error: 'Failed to fetch facturas clientes', message: err.message });
