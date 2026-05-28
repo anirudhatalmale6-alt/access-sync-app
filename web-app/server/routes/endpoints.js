@@ -526,7 +526,19 @@ router.get('/existencias', async (req, res) => {
       LIMIT $${pi++} OFFSET $${pi}
     `, [...params, limit, offset]);
 
-    res.json({ data: result.rows, total, page, limit });
+    const data = [];
+    for (const row of result.rows) {
+      const cinRes = await db.query(`
+        SELECT cin.*, al."NOMALM" AS almacen_nombre
+        FROM "F_CIN" cin
+        LEFT JOIN "F_ALM" al ON cin."ALMCIN" = al."CODALM"
+        WHERE cin."ARTCIN" = $1 AND cin."ALMCIN" = $2
+        ORDER BY cin."FECCIN" DESC
+      `, [row.ARTSTO, row.ALMSTO]);
+      data.push({ ...row, inventario: cinRes.rows });
+    }
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error('Existencias error:', err.message);
     res.status(500).json({ error: 'Failed to fetch existencias', message: err.message });
